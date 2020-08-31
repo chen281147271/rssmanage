@@ -3,7 +3,7 @@
     <el-form ref="loginForm" :model="loginForm" :rules="loginRules" class="login-form" auto-complete="on" label-position="left">
 
       <div class="title-container">
-        <h3 class="title">Login Form</h3>
+        <h3 class="title">系统登入</h3>
       </div>
 
       <el-form-item prop="username">
@@ -34,19 +34,19 @@
           name="password"
           tabindex="2"
           auto-complete="on"
-          @keyup.enter.native="handleLogin"
         />
-        <span class="show-pwd" @click="showPwd">
-          <svg-icon :icon-class="passwordType === 'password' ? 'eye' : 'eye-open'" />
-        </span>
+        <!--        @keyup.enter.native="handleLogin"-->
+        <!--        <span class="show-pwd" @click="showPwd">-->
+        <!--          <svg-icon :icon-class="passwordType === 'password' ? 'eye' : 'eye-open'" />-->
+        <!--        </span>-->
       </el-form-item>
 
-      <el-button :loading="loading" type="primary" style="width:100%;margin-bottom:30px;" @click.native.prevent="handleLogin">Login</el-button>
-
       <div class="tips">
-        <span style="margin-right:20px;">username: admin</span>
-        <span> password: any</span>
+        <span style="margin-right:20px;">记住密码</span>
+        <span> <el-switch v-model="loginForm.checked" /></span>
       </div>
+
+      <el-button :loading="loading" native-type="submit" type="primary" style="width:100%;margin-bottom:30px;" @click.native.prevent="handleLogin">登入</el-button>
 
     </el-form>
   </div>
@@ -54,6 +54,7 @@
 
 <script>
 import { validUsername } from '@/utils/validate'
+import md5 from 'js-md5'
 
 export default {
   name: 'Login',
@@ -74,16 +75,24 @@ export default {
     }
     return {
       loginForm: {
-        username: 'admin',
-        password: '111111'
+        username: '',
+        password: '',
+        checked: true
       },
       loginRules: {
-        username: [{ required: true, trigger: 'blur', validator: validateUsername }],
-        password: [{ required: true, trigger: 'blur', validator: validatePassword }]
+        // username: [{ required: true, trigger: 'blur', validator: validateUsername }],
+        // password: [{ required: true, trigger: 'blur', validator: validatePassword }]
+        username: [
+          { required: true, message: '请输入账号', trigger: 'blur' }
+        ],
+        password: [
+          { required: true, message: '请输入密码', trigger: 'blur' }
+        ]
       },
       loading: false,
       passwordType: 'password',
-      redirect: undefined
+      redirect: undefined,
+      pwcookie: ''
     }
   },
   watch: {
@@ -93,6 +102,11 @@ export default {
       },
       immediate: true
     }
+  },
+  mounted() {
+    this.getscreenwidth()
+    this.getCookie()
+    this.$refs.username.focus()
   },
   methods: {
     showPwd() {
@@ -106,9 +120,11 @@ export default {
       })
     },
     handleLogin() {
+      this.savePW()
       this.$refs.loginForm.validate(valid => {
         if (valid) {
           this.loading = true
+          this.loginForm.password = this.CalcuMD5(this.loginForm.password)
           this.$store.dispatch('user/login', this.loginForm).then(() => {
             this.$router.push({ path: this.redirect || '/' })
             this.loading = false
@@ -116,10 +132,62 @@ export default {
             this.loading = false
           })
         } else {
-          console.log('error submit!!')
           return false
         }
       })
+    },
+    // 清除cookie
+    clearCookie: function() {
+      this.setCookie('', '', -1) // 修改2值都为空，天数为负1天就好了
+    },
+    savePW: function() {
+      const self = this
+      // 判断复选框是否被勾选 勾选则调用配置cookie方法
+      if (self.loginForm.checked == true) {
+        // 传入账号名，密码，和保存天数3个参数
+        self.setCookie(self.loginForm.username, this.CalcuMD5(self.loginForm.password), 999)
+      } else {
+        // console.log("清空Cookie");
+        // 清空Cookie
+        self.clearCookie()
+      }
+    },
+    // 读取cookie
+    getCookie: function() {
+      if (document.cookie.length > 0) {
+        var arr = document.cookie.split('; ') // 这里显示的格式需要切割一下自己可输出看下
+        for (var i = 0; i < arr.length; i++) {
+          var arr2 = arr[i].split('=') // 再次切割
+          // 判断查找相对应的值
+          if (arr2[0] == 'rssmoniteruserName') {
+            this.loginForm.username = arr2[1] // 保存到保存数据的地方
+          } else if (arr2[0] == 'rssmoniteruserPwd') {
+            this.loginForm.password = arr2[1]
+            this.pwcookie = arr2[1]
+          }
+        }
+      }
+    }, CalcuMD5(pwd) {
+      if (pwd !== this.pwcookie) {
+        pwd = pwd.toUpperCase()
+        pwd = md5(pwd)
+        // pwd = pwd.substring(0, pwd.length - 2)
+      }
+      return pwd
+    },
+    // 设置cookie
+    setCookie(c_name, c_pwd, exdays) {
+      var exdate = new Date() // 获取时间
+      exdate.setTime(exdate.getTime() + 24 * 60 * 60 * 1000 * exdays) // 保存的天数
+      // 字符串拼接cookie
+      window.document.cookie = 'rssmoniteruserName' + '=' + c_name + ';path=/;expires=' + exdate.toGMTString()
+      window.document.cookie = 'rssmoniteruserPwd' + '=' + c_pwd + ';path=/;expires=' + exdate.toGMTString()
+    },
+    getscreenwidth() {
+      var width = window.screen.width
+      var exdate = new Date() // 获取时间
+      exdate.setTime(exdate.getTime() + 24 * 60 * 60 * 1000 * 99999) // 保存的天数
+      window.document.cookie = 'screenwidth' + '=' + width + ';path=/;expires=' + exdate.toGMTString()
     }
   }
 }
